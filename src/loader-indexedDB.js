@@ -1,4 +1,5 @@
-!function (root) {
+(function (root) {
+    'use strict';
 
     var Cache = {},
         _sim = {},
@@ -89,21 +90,40 @@
         };
     }
 
-    function _runFactory(mod, factory) {
+    function _save(path) {
+        var db = require('indexedDB'),
+            mod = Cache[path];
+
+        db && mod.factory ?
+            db.setModule({
+                path: path,
+                factory: mod.factory.toString()
+            }) : db.setModule({
+                path: path,
+                json: JSON.stringify(mod.json)
+            });
+    }
+
+    function _runFactory(path, factory, saved) {
+        var mod = Cache[path];
         if (_isFunction(factory)) {
             var module = { exports: {} },
                 exports = factory(makeRequire({ base: mod.url }), module.exports, module) ||
                     module.exports;
-            mod.exports = module.exports;
+            mod.factory = factory;
+            mod.exports = exports;
         } else {
+            mod.json = factory;
             mod.exports = factory;
         }
         mod.dones.forEach(function (done) {
             done(null, mod.exports);
         });
+        mod.dones.length = 0;
+        saved && _save(path);
     }
 
-    function _makeMod(src, done) {
+    function _makeMod(src) {
         _stack.forEach(function (o) {
             if (!o.m) o.m = src;
             var path = _normalize(src, o.m),
@@ -111,47 +131,72 @@
                 mod = Cache[path];
             if (!mod) {
                 mod = _initCache(path);
-                _runFactory(mod, factory);
+                _runFactory(path, factory);
             }
-            !mod.loaded && _runFactory(mod, factory);
+            !mod.exports && _runFactory(path, factory, true);
         });
         _stack.length = 0;
+    }
+
+    function _loadScript(path) {
+        var node = document.createElement('script'),
+            mod = Cache[path];
+        node.addEventListener('load', _onload, false);
+        node.addEventListener('error', _onerror, false);
+        node.type = 'text/javascript';
+        node.src = mod.url;
+        _head.appendChild(node);
+        function _onload() {
+            _onend();
+            return _makeMod(path);
+        }
+        function _onerror() {
+            _onend();
+            _head.removeChild(node);
+            // TODO
+            mod.dones.forEach(function (done) {
+                done(new Error(404));
+            });
+            mod.dones.length = 0;
+        }
+        function _onend() {
+            node.removeEventListener('load', _onload, false);
+            node.removeEventListener('error', _onerror, false);
+        }
     }
 
     function _buildCallback(opt) {
         var name = opt.name,
             base = opt.base,
             path = _normalize(base, name),
-            url = _sim[path] || path,
-            mod = Cache[path];
+            mod = Cache[path],
+            db = require('indexedDB');
 
         return function (done) {
             if (!mod) {
                 mod = _initCache(path);
                 mod.dones.push(done);
-
-                var node = document.createElement('script');
-                node.addEventListener('load', _onload, false);
-                node.addEventListener('error', _onerror, false);
-                node.type = 'text/javascript';
-                node.src = url;
-                _head.appendChild(node);
-                function _onload() {
-                    _onend();
-                    return _makeMod(path, done);
-                }
-                function _onerror() {
-                    _onend();
-                    _head.removeChild(node);
-                    // TODO
-                    return done(new Error('404'));
-                }
-                function _onend() {
-                    node.removeEventListener('load', _onload, false);
-                    node.removeEventListener('error', _onerror, false);
+                if (!db) { 
+                    _loadScript(path);
+                } else {
+                    db.getModule(path, function (e) {
+                        var data = this.result;
+                        if (!data) {
+                            _loadScript(path);
+                        } else if (data.factory) {
+                            var res = eval.call(window, '(' + data.factory + ')');
+                            _runFactory(path, res);
+                        } else if (data.json) {
+                            _runFactory(path, JSON.parse(data.json));
+                        }
+                    });
                 }
             } else {
-                done(null, mod.exports);
+                if ('exports' in mod) {
+                    done(null, mod.exports);
+                } else {
+                    mod.dones.push(done);
+                }
             }
         }
     }
@@ -178,7 +223,7 @@
             // sync
             } else {
                 return _getMod({
-                    name: dpes,
+                    name: deps,
                     base: base
                 });
             }
@@ -207,7 +252,42 @@
         });
     }
 
+    !function () {
+        var request = indexedDB.open('dwarf', 1);
+        _initCache('indexedDB');
+        request.onerror = function (e) {
+            console.error(e);
+        };
+        request.onsuccess = function () {
+            var db  = this.result;
+            _runFactory('indexedDB', function () {
+                return {
+                    db: db,
+                    getModule: function (name, succ, fail) {
+                        var tran = db.transaction(['module']),
+                            store = tran.objectStore('module'),
+                            data = store.get(name);
+                        data.onsuccess = succ;
+                        data.onerror = fail;
+                    },
+                    setModule: function (value, succ, fail) {
+                        var tran = db.transaction(['module'], 'readwrite'),
+                            store = tran.objectStore('module'),
+                            data = store.add(value);
+                        data.onsuccess = succ;
+                        data.onerror = fail;
+                    }
+                };
+            });
+        };
+        request.onupgradeneeded = function () {
+            var db = this.result;
+            db.createObjectStore('module', { keyPath: 'path' });
+            db.createObjectStore('cgi', { keyPath: 'path' });
+        };
+    }();
+
     root.define = define;
     root.require = require;
 
-}(window);
+})(window);

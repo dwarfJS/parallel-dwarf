@@ -1,11 +1,3 @@
-<!DOCTYPE>
-<html>
-<script>
-var T = [+performance.now()];
-</script>
-<body>
-<div id="test"></div>
-<script>
 !function (root) {
 
     var Cache = {},
@@ -121,7 +113,7 @@ var T = [+performance.now()];
                 mod = _initCache(path);
                 _runFactory(mod, factory);
             }
-            !mod.loaded && _runFactory(mod, factory);
+            !mod.exports && _runFactory(mod, factory);
         });
         _stack.length = 0;
     }
@@ -180,13 +172,13 @@ var T = [+performance.now()];
                     }
                 });
                 parallel(deps, function (err, results) {
-                    if (err) return fail && fail(err);
+                    if (err) return err();
                     succ.apply(undefined, results);
                 });
             // sync
             } else {
                 return _getMod({
-                    name: dpes,
+                    name: deps,
                     base: base
                 });
             }
@@ -219,20 +211,3 @@ var T = [+performance.now()];
     root.require = require;
 
 }(window);
-</script>
-<script>
-require([function (done) {
-	require(['./main'], function (main) {
-		main.init();
-		done(null, main);
-	});
-}, function (done) {
-	require(['http://localhost:3000/data.js?jsonpcallback=define'], function (data) {
-		done(null, data);
-	})
-}], function (main, data) {
-	main.render(data);
-})
-</script>
-</body>
-</html>

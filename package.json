@@ -1,0 +1,24 @@
+{
+  "name": "parallel-require",
+  "version": "0.0.1",
+  "description": "[undatble]Waiting to update test cases",
+  "main": "dest/loader-indexedDB.js",
+  "dependencies": {
+    "gulp": "*",
+    "gulp-uglify": "*"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/miniflycn/parallel-require.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/miniflycn/parallel-require/issues"
+  },
+  "homepage": "https://github.com/miniflycn/parallel-require"
+}
