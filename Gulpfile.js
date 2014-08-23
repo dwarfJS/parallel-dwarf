@@ -5,7 +5,7 @@ var gulp = require('gulp')
 gulp.task('default', function () {
   gulp.src('src/loader-indexedDB.js')
     .pipe(uglify({
-    	evaluate: false
+      evaluate: false
     }))
     .pipe(gulp.dest('dest'));
 })
