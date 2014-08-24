@@ -1,11 +1,8 @@
 var gulp = require('gulp')
-  , uglify = require('gulp-uglify')
-  , jsLint = require('gulp-jslint');
+  , uglify = require('gulp-uglify');
 
 gulp.task('default', function () {
   gulp.src('src/loader-indexedDB.js')
-    .pipe(uglify({
-      evaluate: false
-    }))
+    .pipe(uglify())
     .pipe(gulp.dest('dest'));
 })

@@ -7,6 +7,9 @@
         _head = document.getElementsByTagName('head')[0],
         _require,
         _base,
+        MODULE_CACHE_KEY = 'module',
+        CGI_CACHE_KEY = 'cgi',
+        INDEXEDDB_MODULE_NAME = 'indexedDB',
         DOT_RE = /\/\.\//g,
         DOUBLE_DOT_RE = /\/[^/]+\/\.\.\//,
         DOUBLE_SLASH_RE = /([^:/])\/\//g;
@@ -91,36 +94,48 @@
     }
 
     function _save(path) {
-        var db = require('indexedDB'),
+        var db = require(INDEXEDDB_MODULE_NAME),
             mod = Cache[path];
 
-        db && mod.factory ?
-            db.setModule({
+        db && (mod.factory ?
+            db.set(MODULE_CACHE_KEY, {
                 path: path,
-                factory: mod.factory.toString()
-            }) : db.setModule({
+                factory: mod.factory.toString(),
+                deps: JSON.stringify(mod.deps)
+            }) : db.set(MODULE_CACHE_KEY, {
                 path: path,
                 json: JSON.stringify(mod.json)
-            });
+            }));
     }
 
-    function _runFactory(path, factory, saved) {
-        var mod = Cache[path];
-        if (_isFunction(factory)) {
-            var module = { exports: {} },
-                exports = factory(makeRequire({ base: mod.url }), module.exports, module) ||
-                    module.exports;
-            mod.factory = factory;
-            mod.exports = exports;
-        } else {
-            mod.json = factory;
-            mod.exports = factory;
+    function _runFactory(path, factory, deps, saved) {
+        var mod = Cache[path],
+            r = makeRequire({ base: mod.url });
+        function _run() {
+            if (_isFunction(factory)) {
+                var module = { exports: {} },
+                    exports = factory(makeRequire({ base: mod.url }), module.exports, module) ||
+                        module.exports;
+                mod.factory = factory;
+                mod.exports = exports;
+            } else {
+                mod.json = factory;
+                mod.exports = factory;
+            }
+            mod.dones.forEach(function (done) {
+                done(null, mod.exports);
+            });
+            mod.dones.length = 0;
+            saved && _save(path);
         }
-        mod.dones.forEach(function (done) {
-            done(null, mod.exports);
-        });
-        mod.dones.length = 0;
-        saved && _save(path);
+        if (deps) {
+            mod.deps = deps.slice(0);
+            setTimeout(function () {
+                r(deps, _run);
+            }, 0);
+        } else {
+            _run();
+        }
     }
 
     function _makeMod(src) {
@@ -131,9 +146,9 @@
                 mod = Cache[path];
             if (!mod) {
                 mod = _initCache(path);
-                _runFactory(path, factory);
+                _runFactory(path, factory, o.d, true);
             }
-            !mod.exports && _runFactory(path, factory, true);
+            !mod.exports && _runFactory(path, factory, o.d, true);
         });
         _stack.length = 0;
     }
@@ -170,7 +185,7 @@
             base = opt.base,
             path = _normalize(base, name),
             mod = Cache[path],
-            db = require('indexedDB');
+            db = require(INDEXEDDB_MODULE_NAME);
 
         return function (done) {
             if (!mod) {
@@ -179,13 +194,13 @@
                 if (!db) { 
                     _loadScript(path);
                 } else {
-                    db.getModule(path, function (e) {
+                    db.get(MODULE_CACHE_KEY, path, function (e) {
                         var data = this.result;
                         if (!data) {
                             _loadScript(path);
                         } else if (data.factory) {
                             var res = eval.call(window, '(' + data.factory + ')');
-                            _runFactory(path, res);
+                            _runFactory(path, res, JSON.parse(data.deps));
                         } else if (data.json) {
                             _runFactory(path, JSON.parse(data.json));
                         }
@@ -241,49 +256,67 @@
         return _require.apply(root, arguments);
     }
 
-    function define(module, factory) {
+    /**
+     * define(module, deps, factory)
+     * define(module, factory)
+     * define(factory)
+     */
+    function define(module, deps, factory) {
         if (!factory) {
-            factory = module;
-            module = undefined;
+            if (!deps) {
+                factory = module;
+                module = undefined;
+            } else {
+                factory = deps;
+            }
+            deps = null;
         }
         _stack.push({
             m: module,
+            d: deps,
             f: factory
         });
     }
 
     !function () {
         var request = indexedDB.open('dwarf', 1);
-        _initCache('indexedDB');
+        _initCache(INDEXEDDB_MODULE_NAME);
         request.onerror = function (e) {
             console.error(e);
         };
         request.onsuccess = function () {
             var db  = this.result;
-            _runFactory('indexedDB', function () {
+            function _bind(data, succ, fail) {
+                data.onsuccess = succ;
+                data.onerror = fail;
+            }
+            _runFactory(INDEXEDDB_MODULE_NAME, function () {
                 return {
-                    db: db,
-                    getModule: function (name, succ, fail) {
-                        var tran = db.transaction(['module']),
-                            store = tran.objectStore('module'),
+                    get: function (key, name, succ, fail) {
+                        var tran = db.transaction(key),
+                            store = tran.objectStore(key),
                             data = store.get(name);
-                        data.onsuccess = succ;
-                        data.onerror = fail;
+                        _bind(data, succ, fail);
                     },
-                    setModule: function (value, succ, fail) {
-                        var tran = db.transaction(['module'], 'readwrite'),
-                            store = tran.objectStore('module'),
+                    set: function (key, value, succ, fail) {
+                        var tran = db.transaction(key, 'readwrite'),
+                            store = tran.objectStore(key),
                             data = store.add(value);
-                        data.onsuccess = succ;
-                        data.onerror = fail;
+                        _bind(data, succ, fail);
+                    },
+                    clear: function (key, succ, fail) {
+                        var tran = db.transaction(key, 'readwrite'),
+                            store = tran.objectStore(key),
+                            data = store.clear();
+                        _bind(data, succ, fail);
                     }
                 };
             });
         };
         request.onupgradeneeded = function () {
             var db = this.result;
-            db.createObjectStore('module', { keyPath: 'path' });
-            db.createObjectStore('cgi', { keyPath: 'path' });
+            db.createObjectStore(MODULE_CACHE_KEY, { keyPath: 'path' });
+            db.createObjectStore(CGI_CACHE_KEY, { keyPath: 'path' });
         };
     }();
 
