@@ -84,6 +84,6 @@ require(['./main', function (done) {
 });
 ```
 
-### 注意
+### 编写规范
 
-目前该加载器忽略了define的依赖，因为由构建工具保证依赖问题，并打包成单一文件。
+> 请参考 https://github.com/dwarfJS/webkit-dwarf
