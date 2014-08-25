@@ -5,7 +5,10 @@
   "main": "dest/loader-indexedDB.js",
   "dependencies": {
     "gulp": "*",
-    "gulp-uglify": "*"
+    "gulp-uglify": "*",
+    "map-stream": "^0.1.0",
+    "through2": "^0.6.1",
+    "vinyl": "^0.3.2"
   },
   "devDependencies": {},
   "scripts": {

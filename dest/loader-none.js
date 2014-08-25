@@ -9,7 +9,7 @@
         _base,
         MODULE_CACHE_KEY = 'module',
         CGI_CACHE_KEY = 'cgi',
-        INDEXEDDB_MODULE_NAME = 'indexedDB',
+        STORAGE_MODULE_NAME = 'storage',
         DOT_RE = /\/\.\//g,
         DOUBLE_DOT_RE = /\/[^/]+\/\.\.\//,
         DOUBLE_SLASH_RE = /([^:/])\/\//g;
@@ -43,15 +43,7 @@
 
     // just a async parallel
     function parallel(tasks, cb) {
-        var results, pending, keys;
-        if (Array.isArray(tasks)) {
-            results = [];
-            pending = tasks.length;
-        } else {
-            keys = Object.keys(tasks);
-            results = {};
-            pending = keys.length;
-        }
+        var results = [], pending = tasks.length, keys;
 
         function done(i, err, result) {
             results[i] = result;
@@ -64,10 +56,6 @@
         if (!pending) {
             cb && cb(null, results);
             cb = null;
-        } else if (keys) {
-            keys.forEach(function (key) {
-                tasks[key](done.bind(undefined, key));
-            });
         } else {
             tasks.forEach(function (task, i) {
                 task(done.bind(undefined, i));
@@ -94,7 +82,7 @@
     }
 
     function _save(path) {
-        var db = require(INDEXEDDB_MODULE_NAME),
+        var db = require(STORAGE_MODULE_NAME),
             mod = Cache[path];
 
         db && (mod.factory ?
@@ -185,7 +173,7 @@
             base = opt.base,
             path = _normalize(base, name),
             mod = Cache[path],
-            db = require(INDEXEDDB_MODULE_NAME);
+            db = require(STORAGE_MODULE_NAME);
 
         return function (done) {
             if (!mod) {
@@ -278,47 +266,7 @@
         });
     }
 
-    !function () {
-        var request = indexedDB.open('dwarf', 1);
-        _initCache(INDEXEDDB_MODULE_NAME);
-        request.onerror = function (e) {
-            console.error(e);
-        };
-        request.onsuccess = function () {
-            var db  = this.result;
-            function _bind(data, succ, fail) {
-                data.onsuccess = succ;
-                data.onerror = fail;
-            }
-            _runFactory(INDEXEDDB_MODULE_NAME, function () {
-                return {
-                    get: function (key, name, succ, fail) {
-                        var tran = db.transaction(key),
-                            store = tran.objectStore(key),
-                            data = store.get(name);
-                        _bind(data, succ, fail);
-                    },
-                    set: function (key, value, succ, fail) {
-                        var tran = db.transaction(key, 'readwrite'),
-                            store = tran.objectStore(key),
-                            data = store.add(value);
-                        _bind(data, succ, fail);
-                    },
-                    clear: function (key, succ, fail) {
-                        var tran = db.transaction(key, 'readwrite'),
-                            store = tran.objectStore(key),
-                            data = store.clear();
-                        _bind(data, succ, fail);
-                    }
-                };
-            });
-        };
-        request.onupgradeneeded = function () {
-            var db = this.result;
-            db.createObjectStore(MODULE_CACHE_KEY, { keyPath: 'path' });
-            db.createObjectStore(CGI_CACHE_KEY, { keyPath: 'path' });
-        };
-    }();
+
 
     root.define = define;
     root.require = require;
