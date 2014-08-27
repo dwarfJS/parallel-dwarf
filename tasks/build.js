@@ -19,7 +19,7 @@ module.exports = function () {
             cwd: cwd,
             base: base,
             path: fp.replace(/\.js$/, '-' + item),
-            contents: new Buffer(contents.replace("import('cache');", fs.readFileSync(p)))
+            contents: new Buffer(contents.replace("import('storage');", fs.readFileSync(p)))
           });
         self.push(file);
       });

@@ -266,7 +266,7 @@
         });
     }
 
-import('cache');
+import('storage');
 
     root.define = define;
     root.require = require;
