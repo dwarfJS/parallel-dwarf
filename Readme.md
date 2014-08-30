@@ -1,4 +1,4 @@
-#parallel-require
+#parallel-dwarf
 
 > 基于async-parallel模型的require扩展实现。
 
