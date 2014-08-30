@@ -247,6 +247,7 @@
     /**
      * define(module, deps, factory)
      * define(module, factory)
+     * define(deps, factory)
      * define(factory)
      */
     function define(module, deps, factory) {
@@ -254,10 +255,16 @@
             if (!deps) {
                 factory = module;
                 module = undefined;
+                deps = null;
             } else {
                 factory = deps;
+                if (Array.isArray(module)) {
+                    deps = module;
+                    module = undefined;
+                } else {
+                    deps = null;
+                }
             }
-            deps = null;
         }
         _stack.push({
             m: module,

@@ -3,13 +3,15 @@
   "version": "0.0.1",
   "description": "[undatble]Waiting to update test cases",
   "main": "dest/loader-none.js",
-  "dependencies": {
-  },
+  "dependencies": {},
   "devDependencies": {
-    "mocha": "^1.21.4",
+    "chai": "^1.9.1",
     "gulp": "*",
+    "gulp-mocha-phantomjs": "^0.5.0",
     "gulp-uglify": "*",
     "map-stream": "^0.1.0",
+    "mocha": "^1.21.4",
+    "should": "^4.0.4",
     "through2": "^0.6.1",
     "vinyl": "^0.3.2"
   },
