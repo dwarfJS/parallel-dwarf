@@ -104,8 +104,10 @@
                 var module = { exports: {} },
                     exports = factory(makeRequire({ base: mod.url }), module.exports, module) ||
                         module.exports;
-                mod.factory = factory;
-                mod.exports = exports;
+                mod.factory = mod.factory || factory;
+                mod.exports = mod.exports || 
+                    factory(makeRequire({ base: mod.url }), module.exports, module) ||
+                        module.exports;
             } else {
                 mod.json = factory;
                 mod.exports = factory;
@@ -127,9 +129,10 @@
     }
 
     function _makeMod(src) {
+        var url = Cache[src].url;
         _stack.forEach(function (o) {
             if (!o.m) o.m = src;
-            var path = _normalize(src, o.m),
+            var path = _normalize(url, o.m),
                 factory = o.f,
                 mod = Cache[path];
             if (!mod) {
