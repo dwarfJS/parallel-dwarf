@@ -101,9 +101,7 @@
             r = makeRequire({ base: mod.url });
         function _run() {
             if (_isFunction(factory)) {
-                var module = { exports: {} },
-                    exports = factory(makeRequire({ base: mod.url }), module.exports, module) ||
-                        module.exports;
+                var module = { exports: {} };
                 mod.factory = mod.factory || factory;
                 mod.exports = mod.exports || 
                     factory(makeRequire({ base: mod.url }), module.exports, module) ||
